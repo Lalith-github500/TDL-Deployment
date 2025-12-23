@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	_ "github.com/lib/pq"
@@ -20,30 +22,42 @@ var db *sql.DB
 func main() {
 	var err error
 
-	// 🔹 Update password if needed
-	db, err = sql.Open("postgres",
-		"host=localhost port=5432 user=postgres password=Lalith@123psgre dbname=todo_app sslmode=disable")
-	if err != nil {
-		panic(err)
+	// ✅ Read DATABASE_URL from environment (Render provides this)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL not set")
 	}
 
-	err = db.Ping()
+	db, err = sql.Open("postgres", dbURL)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+
+	if err = db.Ping(); err != nil {
+		log.Fatal(err)
 	}
 
 	fmt.Println("Connected to PostgreSQL")
 
+	// Serve frontend
 	http.Handle("/", http.FileServer(http.Dir("./static")))
+
+	// API routes
 	http.HandleFunc("/tasks", getTasks)
 	http.HandleFunc("/add", addTask)
 	http.HandleFunc("/delete", deleteTask)
 
-	fmt.Println("Server running on http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
+	// Render sets PORT automatically
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Println("Server running on port", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-// 🔹 GET all tasks
+// GET all tasks
 func getTasks(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query("SELECT id, name FROM tasks ORDER BY id")
 	if err != nil {
@@ -62,7 +76,7 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tasks)
 }
 
-// 🔹 ADD a task
+// ADD task
 func addTask(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -84,7 +98,7 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(Task{ID: id, Name: name})
 }
 
-// 🔹 DELETE a task
+// DELETE task
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
