@@ -22,7 +22,7 @@ var db *sql.DB
 func main() {
 	var err error
 
-	// ✅ Read DATABASE_URL from environment (Render provides this)
+	// ✅ Read DATABASE_URL from Render environment
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL not set")
@@ -39,6 +39,9 @@ func main() {
 
 	fmt.Println("Connected to PostgreSQL")
 
+	// ✅ CREATE TABLE IF NOT EXISTS
+	createTableIfNotExists()
+
 	// Serve frontend
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 
@@ -47,7 +50,7 @@ func main() {
 	http.HandleFunc("/add", addTask)
 	http.HandleFunc("/delete", deleteTask)
 
-	// Render sets PORT automatically
+	// Render provides PORT automatically
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -55,6 +58,22 @@ func main() {
 
 	fmt.Println("Server running on port", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+// ✅ Create table automatically
+func createTableIfNotExists() {
+	query := `
+	CREATE TABLE IF NOT EXISTS tasks (
+		id SERIAL PRIMARY KEY,
+		name TEXT NOT NULL
+	);`
+
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Fatal("Failed to create table:", err)
+	}
+
+	fmt.Println("Table 'tasks' is ready")
 }
 
 // GET all tasks
