@@ -62,7 +62,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-// 🔐 CREATE TABLES
+//  CREATE TABLES
 func createTablesIfNotExists() {
 	userTable := `
 	CREATE TABLE IF NOT EXISTS users (
@@ -82,7 +82,7 @@ func createTablesIfNotExists() {
 	db.Exec(taskTable)
 }
 
-// 🆕 SIGNUP
+//  SIGNUP
 func signup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -117,7 +117,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "User created successfully")
 }
 
-// 🔓 LOGIN
+//  LOGIN
 func login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -171,7 +171,7 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tasks)
 }
 
-// ➕ ADD TASK
+//  ADD TASK
 func addTask(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 
@@ -184,7 +184,7 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Task added")
 }
 
-// ❌ DELETE TASK
+//  DELETE TASK
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 	db.Exec("DELETE FROM tasks WHERE id=$1", id)
