@@ -186,10 +186,14 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func getTasks(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 
-	rows, _ := db.Query(
-		"SELECT id, name FROM tasks WHERE user_id=$1",
+	rows, err := db.Query(
+		"SELECT id, name FROM tasks WHERE user_id = $1",
 		userID,
 	)
+	if err != nil {
+		http.Error(w, "DB error", 500)
+		return
+	}
 	defer rows.Close()
 
 	var tasks []Task
@@ -202,6 +206,7 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tasks)
 }
 
+
 //  ADD TASK
 func addTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
@@ -212,22 +217,37 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Exec(
+	_, err := db.Exec(
 		"INSERT INTO tasks (name, user_id) VALUES ($1, $2)",
 		name, userID,
 	)
+	if err != nil {
+		http.Error(w, "DB error", 500)
+		return
+	}
 
 	fmt.Fprintln(w, "Task added")
 }
+
 //  DELETE TASK
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
-	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil {
+		http.Error(w, "Invalid ID", 400)
+		return
+	}
 
-	db.Exec(
-		"DELETE FROM tasks WHERE id=$1 AND user_id=$2",
+	result, _ := db.Exec(
+		"DELETE FROM tasks WHERE id = $1 AND user_id = $2",
 		id, userID,
 	)
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		http.Error(w, "Task not found or unauthorized", 403)
+		return
+	}
 
 	fmt.Fprintln(w, "Task deleted")
 }
