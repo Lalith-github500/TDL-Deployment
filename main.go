@@ -1,5 +1,4 @@
 package main
-
 import (
 	"context"
 	"database/sql"
@@ -65,7 +64,11 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
+<<<<<<< HEAD
 // table creation
+=======
+//  CREATE TABLES
+>>>>>>> 07e2b5a96d955173dfef87940c640f150c0600ac
 func createTablesIfNotExists() {
 	db.Exec(`
 	CREATE TABLE IF NOT EXISTS users (
@@ -84,7 +87,11 @@ func createTablesIfNotExists() {
 	`)
 }
 
+<<<<<<< HEAD
 // signup
+=======
+//  SIGNUP
+>>>>>>> 07e2b5a96d955173dfef87940c640f150c0600ac
 func signup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -114,7 +121,11 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "User created")
 }
 
+<<<<<<< HEAD
 // login
+=======
+//  LOGIN
+>>>>>>> 07e2b5a96d955173dfef87940c640f150c0600ac
 func login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -200,6 +211,10 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tasks)
 }
 
+<<<<<<< HEAD
+=======
+//  ADD TASK
+>>>>>>> 07e2b5a96d955173dfef87940c640f150c0600ac
 func addTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	name := r.URL.Query().Get("name")
@@ -217,6 +232,10 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Task added")
 }
 
+<<<<<<< HEAD
+=======
+//  DELETE TASK
+>>>>>>> 07e2b5a96d955173dfef87940c640f150c0600ac
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
