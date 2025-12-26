@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -19,8 +22,8 @@ type Task struct {
 }
 
 type User struct {
-	ID       int
-	Username string
+	ID       int    `json:"id"`
+	Username string `json:"username"`
 }
 
 var db *sql.DB
@@ -49,9 +52,9 @@ func main() {
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/login", login)
 
-	http.HandleFunc("/tasks", getTasks)
-	http.HandleFunc("/add", addTask)
-	http.HandleFunc("/delete", deleteTask)
+	http.HandleFunc("/tasks", authMiddleware(getTasks))
+	http.HandleFunc("/add", authMiddleware(addTask))
+	http.HandleFunc("/delete", authMiddleware(deleteTask))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -62,27 +65,26 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-// 🔐 CREATE TABLES
+// table creation
 func createTablesIfNotExists() {
-	userTable := `
+	db.Exec(`
 	CREATE TABLE IF NOT EXISTS users (
 		id SERIAL PRIMARY KEY,
 		username TEXT UNIQUE NOT NULL,
 		password_hash TEXT NOT NULL
-	);`
+	);
+	`)
 
-	taskTable := `
+	db.Exec(`
 	CREATE TABLE IF NOT EXISTS tasks (
 		id SERIAL PRIMARY KEY,
 		name TEXT NOT NULL,
 		user_id INT REFERENCES users(id) ON DELETE CASCADE
-	);`
-
-	db.Exec(userTable)
-	db.Exec(taskTable)
+	);
+	`)
 }
 
-// 🆕 SIGNUP
+// signup
 func signup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -97,16 +99,11 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, "Error hashing password", 500)
-		return
-	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
-	_, err = db.Exec(
+	_, err := db.Exec(
 		"INSERT INTO users (username, password_hash) VALUES ($1, $2)",
-		username,
-		string(hash),
+		username, string(hash),
 	)
 
 	if err != nil {
@@ -114,10 +111,10 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintln(w, "User created successfully")
+	fmt.Fprintln(w, "User created")
 }
 
-// 🔓 LOGIN
+// login
 func login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -140,25 +137,57 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword(
-		[]byte(storedHash),
-		[]byte(password),
-	)
-
-	if err != nil {
+	if bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password)) != nil {
 		http.Error(w, "Invalid credentials", 401)
 		return
 	}
 
-	json.NewEncoder(w).Encode(User{
-		ID:       userID,
-		Username: username,
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": userID,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+	})
+
+	tokenStr, _ := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"token": tokenStr,
 	})
 }
 
-// 📄 GET TASKS (TEMP: shows all tasks – will secure later)
+// authorization middleware
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokenStr := r.Header.Get("Authorization")
+		if tokenStr == "" {
+			http.Error(w, "Unauthorized", 401)
+			return
+		}
+
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+			return []byte(os.Getenv("JWT_SECRET")), nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid token", 401)
+			return
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+		userID := int(claims["user_id"].(float64))
+
+		ctx := context.WithValue(r.Context(), "user_id", userID)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+// tasks
 func getTasks(w http.ResponseWriter, r *http.Request) {
-	rows, _ := db.Query("SELECT id, name FROM tasks")
+	userID := r.Context().Value("user_id").(int)
+
+	rows, _ := db.Query(
+		"SELECT id, name FROM tasks WHERE user_id=$1",
+		userID,
+	)
 	defer rows.Close()
 
 	var tasks []Task
@@ -171,8 +200,8 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tasks)
 }
 
-// ➕ ADD TASK
 func addTask(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(int)
 	name := r.URL.Query().Get("name")
 
 	if name == "" {
@@ -180,13 +209,22 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Exec("INSERT INTO tasks (name) VALUES ($1)", name)
+	db.Exec(
+		"INSERT INTO tasks (name, user_id) VALUES ($1, $2)",
+		name, userID,
+	)
+
 	fmt.Fprintln(w, "Task added")
 }
 
-// ❌ DELETE TASK
 func deleteTask(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(int)
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
-	db.Exec("DELETE FROM tasks WHERE id=$1", id)
+
+	db.Exec(
+		"DELETE FROM tasks WHERE id=$1 AND user_id=$2",
+		id, userID,
+	)
+
 	fmt.Fprintln(w, "Task deleted")
 }
