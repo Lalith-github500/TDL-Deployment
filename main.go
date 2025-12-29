@@ -70,8 +70,6 @@ func main() {
 
 //  CREATE TABLES
 
-=======
->>>>>>> Stashed changes
 func createTablesIfNotExists() {
 	db.Exec(`
 	CREATE TABLE IF NOT EXISTS users (
@@ -89,10 +87,8 @@ func createTablesIfNotExists() {
 	);
 	`)
 }
-<<<<<<< Updated upstream
 // signup
-=======
->>>>>>> Stashed changes
+
 func signup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -121,13 +117,8 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintln(w, "User created")
 }
-<<<<<<< Updated upstream
-
-
 // login
 
-=======
->>>>>>> Stashed changes
 func login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", 405)
@@ -212,12 +203,7 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(tasks)
 }
-<<<<<<< Updated upstream
-
-
 //  ADD TASK
-=======
->>>>>>> Stashed changes
 func addTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	name := r.URL.Query().Get("name")
@@ -238,11 +224,8 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintln(w, "Task added")
 }
-<<<<<<< Updated upstream
 
 //  DELETE TASK
-=======
->>>>>>> Stashed changes
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	id, err := strconv.Atoi(r.URL.Query().Get("id"))
