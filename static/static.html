@@ -1,86 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple To-Do List</title>
-
-    <style>
-        body {
-            font-family: Arial;
-            max-width: 400px;
-            margin: 30px auto;
-        }
-
-        #form {
-            display: flex;
-            gap: 10px;
-        }
-
-        input {
-            padding: 8px;
-            width: 70%;
-        }
-
-        button {
-            padding: 8px 12px;
-            cursor: pointer;
-        }
-
-        li {
-            margin-top: 10px;
-            display: flex;
-            justify-content: space-between;
-        }
-    </style>
+	<title>Todo App</title>
+	<style>
+		body {
+			font-family: Arial;
+			max-width: 400px;
+			margin: 40px auto;
+		}
+		input, button {
+			padding: 8px;
+			margin: 5px 0;
+			width: 100%;
+		}
+		li {
+			display: flex;
+			justify-content: space-between;
+			margin-top: 5px;
+		}
+	</style>
 </head>
 
 <body>
 
-    <h1>My To-Do List</h1>
+<h2>Signup</h2>
+<input id="su_user" placeholder="Username">
+<input id="su_pass" type="password" placeholder="Password">
+<button onclick="signup()">Signup</button>
 
-    <div id="form">
-        <input id="taskInput" type="text" placeholder="Enter a task">
-        <button onclick="addTask()">Add</button>
-    </div>
+<h2>Login</h2>
+<input id="li_user" placeholder="Username">
+<input id="li_pass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
 
-    <ul id="taskList"></ul>
+<hr>
 
-    <script>
-        function loadTasks() {
-            fetch('/tasks')
-                .then(res => res.json())
-                .then(tasks => {
-                    const list = document.getElementById("taskList");
-                    list.innerHTML = "";
+<h2>Tasks</h2>
+<input id="taskInput" placeholder="New task">
+<button onclick="addTask()">Add Task</button>
 
-                    tasks.forEach(t => {
-                        const li = document.createElement("li");
-                        li.innerHTML = `
-                            ${t.name}
-                            <button onclick="deleteTask(${t.id})">Delete</button>
-                        `;
-                        list.appendChild(li);
-                    });
-                });
-        }
+<ul id="taskList"></ul>
 
-        function addTask() {
-            const name = document.getElementById("taskInput").value;
-            if (name.trim() === "") return;
+<script>
+let token = ""
 
-            fetch(`/add?name=${name}`)
-                .then(() => {
-                    document.getElementById("taskInput").value = "";
-                    loadTasks();
-                });
-        }
+function signup() {
+	fetch("/signup", {
+		method: "POST",
+		headers: {"Content-Type": "application/x-www-form-urlencoded"},
+		body: `username=${su_user.value}&password=${su_pass.value}`
+	})
+	.then(res => res.text())
+	.then(alert)
+}
 
-        function deleteTask(id) {
-            fetch(`/delete?id=${id}`)
-                .then(() => loadTasks());
-        }
+function login() {
+	fetch("/login", {
+		method: "POST",
+		headers: {"Content-Type": "application/x-www-form-urlencoded"},
+		body: `username=${li_user.value}&password=${li_pass.value}`
+	})
+	.then(res => res.json())
+	.then(data => {
+		token = data.token
+		loadTasks()
+	})
+}
 
-        loadTasks();
-    </script>
+function loadTasks() {
+	fetch("/tasks", {
+		headers: {"Authorization": token}
+	})
+	.then(res => res.json())
+	.then(tasks => {
+		taskList.innerHTML = ""
+		tasks.forEach(t => {
+			const li = document.createElement("li")
+			li.innerHTML = `
+				${t.name}
+				<button onclick="deleteTask(${t.id})">X</button>
+			`
+			taskList.appendChild(li)
+		})
+	})
+}
+
+function addTask() {
+	fetch(`/add?name=${taskInput.value}`, {
+		headers: {"Authorization": token}
+	})
+	.then(() => {
+		taskInput.value = ""
+		loadTasks()
+	})
+}
+
+function deleteTask(id) {
+	fetch(`/delete?id=${id}`, {
+		headers: {"Authorization": token}
+	})
+	.then(loadTasks)
+}
+</script>
 
 </body>
 </html>
