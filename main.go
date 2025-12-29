@@ -65,9 +65,6 @@ func main() {
 	fmt.Println("Server running on port", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
-<<<<<<< Updated upstream
-
-
 //  CREATE TABLES
 
 func createTablesIfNotExists() {
