@@ -18,6 +18,9 @@
 			justify-content: space-between;
 			margin-top: 5px;
 		}
+		#tasksSection {
+			display: none;
+		}
 	</style>
 </head>
 
@@ -35,15 +38,17 @@
 
 <hr>
 
-<h2>Tasks</h2>
-<input id="taskInput" placeholder="New task">
-<button onclick="addTask()">Add Task</button>
+<div id="tasksSection">
+	<h2>Tasks</h2>
+	<input id="taskInput" placeholder="New task">
+	<button onclick="addTask()">Add Task</button>
 
-<ul id="taskList"></ul>
+	<ul id="taskList"></ul>
+
+	<button onclick="logout()">Logout</button>
+</div>
 
 <script>
-let token = ""
-
 function signup() {
 	fetch("/signup", {
 		method: "POST",
@@ -62,12 +67,16 @@ function login() {
 	})
 	.then(res => res.json())
 	.then(data => {
-		token = data.token
+		localStorage.setItem("token", data.token)
+		showTasksUI()
 		loadTasks()
 	})
 }
 
 function loadTasks() {
+	const token = localStorage.getItem("token")
+	if (!token) return
+
 	fetch("/tasks", {
 		headers: {"Authorization": token}
 	})
@@ -86,6 +95,7 @@ function loadTasks() {
 }
 
 function addTask() {
+	const token = localStorage.getItem("token")
 	fetch(`/add?name=${taskInput.value}`, {
 		headers: {"Authorization": token}
 	})
@@ -96,10 +106,28 @@ function addTask() {
 }
 
 function deleteTask(id) {
+	const token = localStorage.getItem("token")
 	fetch(`/delete?id=${id}`, {
 		headers: {"Authorization": token}
 	})
 	.then(loadTasks)
+}
+
+function logout() {
+	localStorage.removeItem("token")
+	taskList.innerHTML = ""
+	document.getElementById("tasksSection").style.display = "none"
+	alert("Logged out")
+}
+
+function showTasksUI() {
+	document.getElementById("tasksSection").style.display = "block"
+}
+
+// Auto-login if token exists
+if (localStorage.getItem("token")) {
+	showTasksUI()
+	loadTasks()
 }
 </script>
 
