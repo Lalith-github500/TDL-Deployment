@@ -1,135 +1,141 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-	<title>Todo App</title>
-	<style>
-		body {
-			font-family: Arial;
-			max-width: 400px;
-			margin: 40px auto;
-		}
-		input, button {
-			padding: 8px;
-			margin: 5px 0;
-			width: 100%;
-		}
-		li {
-			display: flex;
-			justify-content: space-between;
-			margin-top: 5px;
-		}
-		#tasksSection {
-			display: none;
-		}
-	</style>
+  <meta charset="UTF-8" />
+  <title>Todo App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+    .todo-app {
+      background: white;
+      width: 400px;
+      margin: 50px auto;
+      padding: 20px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    h1 {
+      text-align: center;
+      color: #e74c3c;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+    li.completed span {
+      text-decoration: line-through;
+      color: gray;
+    }
+    button {
+      margin-left: auto;
+      cursor: pointer;
+    }
+    .filters {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .filters button {
+      background: none;
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+    }
+  </style>
 </head>
 
 <body>
+  <div class="todo-app">
+    <h1>todos</h1>
 
-<h2>Signup(If you have already signed up then directly go for login)</h2>
-<input id="su_user" placeholder="Username">
-<input id="su_pass" type="password" placeholder="Password">
-<button onclick="signup()">Signup</button>
+    <input
+      id="taskInput"
+      placeholder="What needs to be done?"
+      onkeypress="if(event.key==='Enter') addTask()"
+    />
 
-<h2>Login</h2>
-<input id="li_user" placeholder="Username">
-<input id="li_pass" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
+    <ul id="taskList"></ul>
 
-<hr>
+    <div class="filters">
+      <span id="count"></span>
+      <div>
+        <button onclick="filterTasks('all')">All</button>
+        <button onclick="filterTasks('active')">Active</button>
+        <button onclick="filterTasks('completed')">Completed</button>
+      </div>
+    </div>
+  </div>
 
-<div id="tasksSection">
-	<h2>Tasks</h2>
-	<input id="taskInput" placeholder="New task">
-	<button onclick="addTask()">Add Task</button>
+  <script>
+    let tasks = [];
+    let currentFilter = "all";
 
-	<ul id="taskList"></ul>
+    async function fetchTasks() {
+      const res = await fetch("/tasks");
+      tasks = await res.json();
+      renderTasks();
+    }
 
-	<button onclick="logout()">Logout</button>
-</div>
+    async function addTask() {
+      const input = document.getElementById("taskInput");
+      if (!input.value) return;
 
-<script>
-function signup() {
-	fetch("/signup", {
-		method: "POST",
-		headers: {"Content-Type": "application/x-www-form-urlencoded"},
-		body: `username=${su_user.value}&password=${su_pass.value}`
-	})
-	.then(res => res.text())
-	.then(alert)
-}
+      await fetch(`/add?name=${encodeURIComponent(input.value)}`);
+      input.value = "";
+      fetchTasks();
+    }
 
-function login() {
-	fetch("/login", {
-		method: "POST",
-		headers: {"Content-Type": "application/x-www-form-urlencoded"},
-		body: `username=${li_user.value}&password=${li_pass.value}`
-	})
-	.then(res => res.json())
-	.then(data => {
-		localStorage.setItem("token", data.token)
-		showTasksUI()
-		loadTasks()
-	})
-}
+    function toggleTask(id) {
+      const task = tasks.find(t => t.id === id);
+      task.completed = !task.completed;
+      renderTasks();
+    }
 
-function loadTasks() {
-	const token = localStorage.getItem("token")
-	if (!token) return
+    function renderTasks() {
+      const list = document.getElementById("taskList");
+      list.innerHTML = "";
 
-	fetch("/tasks", {
-		headers: {"Authorization": token}
-	})
-	.then(res => res.json())
-	.then(tasks => {
-		taskList.innerHTML = ""
-		tasks.forEach(t => {
-			const li = document.createElement("li")
-			li.innerHTML = `
-				${t.name}
-				<button onclick="deleteTask(${t.id})">X</button>
-			`
-			taskList.appendChild(li)
-		})
-	})
-}
+      let filtered = tasks;
+      if (currentFilter === "active")
+        filtered = tasks.filter(t => !t.completed);
+      if (currentFilter === "completed")
+        filtered = tasks.filter(t => t.completed);
 
-function addTask() {
-	const token = localStorage.getItem("token")
-	fetch(`/add?name=${taskInput.value}`, {
-		headers: {"Authorization": token}
-	})
-	.then(() => {
-		taskInput.value = ""
-		loadTasks()
-	})
-}
+      filtered.forEach(task => {
+        const li = document.createElement("li");
+        li.className = task.completed ? "completed" : "";
 
-function deleteTask(id) {
-	const token = localStorage.getItem("token")
-	fetch(`/delete?id=${id}`, {
-		headers: {"Authorization": token}
-	})
-	.then(loadTasks)
-}
+        li.innerHTML = `
+          <input type="checkbox" ${task.completed ? "checked" : ""}
+            onclick="toggleTask(${task.id})">
+          <span style="margin-left:8px">${task.name}</span>
+        `;
 
-function logout() {
-	localStorage.removeItem("token")
-	taskList.innerHTML = ""
-	document.getElementById("tasksSection").style.display = "none"
-	alert("Logged out")
-}
+        list.appendChild(li);
+      });
 
-function showTasksUI() {
-	document.getElementById("tasksSection").style.display = "block"
-}
+      document.getElementById("count").innerText =
+        `${tasks.filter(t => !t.completed).length} items left`;
+    }
 
-// Auto-login if token exists
-if (localStorage.getItem("token")) {
-	showTasksUI()
-	loadTasks()
-}
-</script>
+    function filterTasks(type) {
+      currentFilter = type;
+      renderTasks();
+    }
 
+    fetchTasks();
+  </script>
 </body>
 </html>
