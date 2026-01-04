@@ -1,83 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Todo App</title>
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f5f5f5;
-}
-
-.todo-app {
-  background: white;
-  width: 400px;
-  margin: 50px auto;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-}
-
-h1 {
-  text-align: center;
-  color: #e74c3c;
-}
-
-input[type=text] {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-}
-
-ul {
-  list-style: none;
-  padding: 0;
-}
-
-li {
-  display: flex;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #ddd;
-}
-
-li.completed span {
-  text-decoration: line-through;
-  color: gray;
-}
-
-li span {
-  flex: 1;
-  margin-left: 10px;
-}
-
-button {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: red;
-  font-size: 16px;
-}
-
-.filters {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-.filters button {
-  border: 1px solid #ddd;
-  padding: 5px 10px;
-}
-</style>
+  <meta charset="UTF-8" />
+  <title>Todo App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+    .container {
+      width: 400px;
+      margin: 40px auto;
+      background: white;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #e74c3c;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+    }
+    button {
+      padding: 6px 10px;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+    }
+    .completed {
+      text-decoration: line-through;
+      color: gray;
+    }
+    .filters button {
+      margin-right: 5px;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
 </head>
-
 <body>
 
-<div class="todo-app">
+<div class="container" id="authBox">
+  <h1>Login / Signup</h1>
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="signup()">Signup</button>
+  <button onclick="login()">Login</button>
+</div>
+
+<div class="container hidden" id="todoBox">
   <h1>todos</h1>
 
-  <input id="taskInput" type="text" placeholder="What needs to be done?" />
+  <input id="taskInput" placeholder="What needs to be done?" onkeypress="if(event.key==='Enter') addTask()">
 
   <ul id="taskList"></ul>
 
@@ -85,76 +71,109 @@ button {
     <button onclick="loadTasks('all')">All</button>
     <button onclick="loadTasks('active')">Active</button>
     <button onclick="loadTasks('completed')">Completed</button>
+    <button onclick="logout()">Logout</button>
   </div>
 </div>
 
 <script>
+const API = "";
 let currentFilter = "all";
 
-document.getElementById("taskInput").addEventListener("keypress", function (e) {
-  if (e.key === "Enter") {
-    addTask();
-  }
-});
+function getToken() {
+  return localStorage.getItem("token");
+}
 
-function addTask() {
-  const input = document.getElementById("taskInput");
-  const name = input.value.trim();
-  if (!name) return;
+function authHeaders() {
+  return {
+    "Authorization": "Bearer " + getToken()
+  };
+}
 
-  fetch(`/add?name=${encodeURIComponent(name)}`)
-    .then(() => {
-      input.value = "";
-      loadTasks(currentFilter);
-    });
+// ---------------- AUTH ----------------
+
+function signup() {
+  fetch("/signup", {
+    method: "POST",
+    body: new URLSearchParams({
+      username: username.value,
+      password: password.value
+    })
+  }).then(r => r.text()).then(alert);
+}
+
+function login() {
+  fetch("/login", {
+    method: "POST",
+    body: new URLSearchParams({
+      username: username.value,
+      password: password.value
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    localStorage.setItem("token", data.token);
+    showTodos();
+  });
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  location.reload();
+}
+
+// ---------------- TODOS ----------------
+
+function showTodos() {
+  authBox.classList.add("hidden");
+  todoBox.classList.remove("hidden");
+  loadTasks("all");
 }
 
 function loadTasks(filter) {
   currentFilter = filter;
-
-  fetch(`/tasks?filter=${filter}`)
-    .then(res => res.json())
-    .then(tasks => {
-      const list = document.getElementById("taskList");
-      list.innerHTML = "";
-
-      tasks.forEach(task => {
-        const li = document.createElement("li");
-        if (task.completed) li.classList.add("completed");
-
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = task.completed;
-        checkbox.onclick = () => toggleTask(task.id);
-
-        const span = document.createElement("span");
-        span.textContent = task.name;
-
-        const del = document.createElement("button");
-        del.innerHTML = "✖";
-        del.onclick = () => deleteTask(task.id);
-
-        li.appendChild(checkbox);
-        li.appendChild(span);
-        li.appendChild(del);
-
-        list.appendChild(li);
-      });
+  fetch(`/tasks?filter=${filter}`, {
+    headers: authHeaders()
+  })
+  .then(r => r.json())
+  .then(tasks => {
+    taskList.innerHTML = "";
+    tasks.forEach(t => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="${t.completed ? 'completed' : ''}"
+              onclick="toggleTask(${t.id})">${t.name}</span>
+        <button onclick="deleteTask(${t.id})">x</button>
+      `;
+      taskList.appendChild(li);
     });
+  });
+}
+
+function addTask() {
+  fetch(`/add?name=${taskInput.value}`, {
+    headers: authHeaders()
+  }).then(() => {
+    taskInput.value = "";
+    loadTasks(currentFilter);
+  });
 }
 
 function toggleTask(id) {
-  fetch(`/toggle?id=${id}`)
-    .then(() => loadTasks(currentFilter));
+  fetch(`/toggle?id=${id}`, {
+    headers: authHeaders()
+  }).then(() => loadTasks(currentFilter));
 }
 
 function deleteTask(id) {
-  fetch(`/delete?id=${id}`)
-    .then(() => loadTasks(currentFilter));
+  fetch(`/delete?id=${id}`, {
+    headers: authHeaders()
+  }).then(() => loadTasks(currentFilter));
 }
 
-// Initial load
-loadTasks("all");
+// AUTO LOGIN
+if (getToken()) {
+  showTodos();
+}
 </script>
 
 </body>
