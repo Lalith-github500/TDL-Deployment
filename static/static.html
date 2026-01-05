@@ -24,6 +24,7 @@ input {
   width: 100%;
   padding: 8px;
   margin: 5px 0;
+  box-sizing: border-box;
 }
 button {
   padding: 6px 10px;
@@ -38,6 +39,11 @@ li {
   display: flex;
   justify-content: space-between;
   padding: 6px 0;
+  align-items: center;
+}
+li span {
+  cursor: pointer;
+  flex: 1;
 }
 .completed {
   text-decoration: line-through;
@@ -90,43 +96,75 @@ function getToken() {
 }
 
 function authHeaders() {
+  const token = getToken();
+  if (!token) return {};
   return {
-    "Authorization": "Bearer " + getToken()
+    "Authorization": "Bearer " + token
   };
 }
 
 // ---------------- AUTH ----------------
 function signup() {
+  const usernameVal = document.getElementById("username").value;
+  const passwordVal = document.getElementById("password").value;
+  
+  if (!usernameVal || !passwordVal) {
+    alert("Please enter username and password");
+    return;
+  }
+
   fetch("/signup", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
     body: new URLSearchParams({
-      username: username.value,
-      password: password.value
+      username: usernameVal,
+      password: passwordVal
     })
   })
   .then(r => r.text())
-  .then(alert);
+  .then(msg => {
+    alert(msg);
+  })
+  .catch(err => {
+    alert("Signup error: " + err.message);
+  });
 }
 
 function login() {
+  const usernameVal = document.getElementById("username").value;
+  const passwordVal = document.getElementById("password").value;
+  
+  if (!usernameVal || !passwordVal) {
+    alert("Please enter username and password");
+    return;
+  }
+
   fetch("/login", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
     body: new URLSearchParams({
-      username: username.value,
-      password: password.value
+      username: usernameVal,
+      password: passwordVal
     })
   })
   .then(async r => {
+    const text = await r.text();
     if (!r.ok) {
-      alert(await r.text());
-      return;
+      alert(text);
+      throw new Error(text);
     }
-    return r.json();
+    return JSON.parse(text);
   })
   .then(data => {
-    if (!data) return;
     localStorage.setItem("token", data.token);
     showTodos();
+  })
+  .catch(err => {
+    console.error("Login error:", err);
   });
 }
 
@@ -137,8 +175,8 @@ function logout() {
 
 // ---------------- UI ----------------
 function showTodos() {
-  authBox.classList.add("hidden");
-  todoBox.classList.remove("hidden");
+  document.getElementById("authBox").classList.add("hidden");
+  document.getElementById("todoBox").classList.remove("hidden");
   loadTasks("all");
 }
 
@@ -153,35 +191,55 @@ function loadTasks(filter) {
     if (!r.ok) {
       console.error(await r.text());
       logout();
-      return;
+      return null;
     }
     return r.json();
   })
   .then(tasks => {
     if (!tasks) return;
 
+    const taskList = document.getElementById("taskList");
     taskList.innerHTML = "";
+    
     tasks.forEach(t => {
       const li = document.createElement("li");
-      li.innerHTML = `
-        <span class="${t.completed ? 'completed' : ''}"
-              onclick="toggleTask(${t.id})">${t.name}</span>
-        <button onclick="deleteTask(${t.id})">x</button>
-      `;
+      
+      const span = document.createElement("span");
+      span.className = t.completed ? 'completed' : '';
+      span.textContent = t.name;
+      span.onclick = () => toggleTask(t.id);
+      
+      const btn = document.createElement("button");
+      btn.textContent = "x";
+      btn.onclick = () => deleteTask(t.id);
+      
+      li.appendChild(span);
+      li.appendChild(btn);
       taskList.appendChild(li);
     });
+  })
+  .catch(err => {
+    console.error("Load tasks error:", err);
   });
 }
 
 function addTask() {
-  if (!taskInput.value) return;
+  const input = document.getElementById("taskInput");
+  if (!input.value.trim()) return;
 
-  fetch(`/add?name=${encodeURIComponent(taskInput.value)}`, {
+  fetch(`/add?name=${encodeURIComponent(input.value)}`, {
     headers: authHeaders()
   })
-  .then(() => {
-    taskInput.value = "";
+  .then(r => {
+    if (!r.ok) {
+      console.error("Failed to add task");
+      return;
+    }
+    input.value = "";
     loadTasks(currentFilter);
+  })
+  .catch(err => {
+    console.error("Add task error:", err);
   });
 }
 
@@ -189,14 +247,28 @@ function toggleTask(id) {
   fetch(`/toggle?id=${id}`, {
     headers: authHeaders()
   })
-  .then(() => loadTasks(currentFilter));
+  .then(r => {
+    if (r.ok) {
+      loadTasks(currentFilter);
+    }
+  })
+  .catch(err => {
+    console.error("Toggle task error:", err);
+  });
 }
 
 function deleteTask(id) {
   fetch(`/delete?id=${id}`, {
     headers: authHeaders()
   })
-  .then(() => loadTasks(currentFilter));
+  .then(r => {
+    if (r.ok) {
+      loadTasks(currentFilter);
+    }
+  })
+  .catch(err => {
+    console.error("Delete task error:", err);
+  });
 }
 
 // ---------------- AUTO LOGIN ----------------
