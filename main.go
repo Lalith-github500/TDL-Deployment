@@ -29,16 +29,20 @@ type Task struct {
 }
 
 var db *sql.DB
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+var jwtSecret []byte
 
 func main() {
-	var err error
+	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+	if len(jwtSecret) == 0 {
+		log.Fatal("JWT_SECRET not set")
+	}
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL not set")
 	}
 
+	var err error
 	db, err = sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
@@ -49,14 +53,13 @@ func main() {
 	}
 
 	fmt.Println("Connected to PostgreSQL")
-
 	createTables()
 
 	// AUTH
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/login", login)
 
-	// TASKS (protected)
+	// TASKS (JWT protected)
 	http.HandleFunc("/tasks", auth(getTasks))
 	http.HandleFunc("/add", auth(addTask))
 	http.HandleFunc("/toggle", auth(toggleTask))
@@ -79,23 +82,20 @@ func main() {
 //////////////////////////////////////////////////
 
 func createTables() {
-	userTable := `
+	db.Exec(`
 	CREATE TABLE IF NOT EXISTS users (
 		id SERIAL PRIMARY KEY,
 		username TEXT UNIQUE NOT NULL,
 		password_hash TEXT NOT NULL
-	);`
+	)`)
 
-	taskTable := `
+	db.Exec(`
 	CREATE TABLE IF NOT EXISTS tasks (
 		id SERIAL PRIMARY KEY,
 		name TEXT NOT NULL,
 		completed BOOLEAN DEFAULT FALSE,
 		user_id INT REFERENCES users(id) ON DELETE CASCADE
-	);`
-
-	db.Exec(userTable)
-	db.Exec(taskTable)
+	)`)
 }
 
 //////////////////////////////////////////////////
@@ -148,12 +148,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		username,
 	).Scan(&userID, &hash)
 
-	if err != nil {
-		http.Error(w, "Invalid credentials", 401)
-		return
-	}
-
-	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+	if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		http.Error(w, "Invalid credentials", 401)
 		return
 	}
@@ -165,6 +160,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	tokenStr, _ := token.SignedString(jwtSecret)
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"token": tokenStr,
 	})
@@ -202,24 +198,25 @@ func auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 //////////////////////////////////////////////////
-// TASKS (USER-SCOPED)
+// TASKS
 //////////////////////////////////////////////////
 
 func getTasks(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	filter := r.URL.Query().Get("filter")
 
-	query := `
-	SELECT id, name, completed FROM tasks
-	WHERE user_id = $1`
-
+	query := "SELECT id, name, completed FROM tasks WHERE user_id=$1"
 	if filter == "active" {
-		query += " AND completed = false"
+		query += " AND completed=false"
 	} else if filter == "completed" {
-		query += " AND completed = true"
+		query += " AND completed=true"
 	}
 
-	rows, _ := db.Query(query+" ORDER BY id", userID)
+	rows, err := db.Query(query+" ORDER BY id", userID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	defer rows.Close()
 
 	var tasks []Task
@@ -229,6 +226,7 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 		tasks = append(tasks, t)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tasks)
 }
 
@@ -236,34 +234,24 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	name := r.URL.Query().Get("name")
 
-	db.Exec(
-		"INSERT INTO tasks (name, user_id) VALUES ($1, $2)",
-		name, userID,
-	)
+	if name == "" {
+		http.Error(w, "Task name required", 400)
+		return
+	}
 
-	fmt.Fprintln(w, "Task added")
+	db.Exec("INSERT INTO tasks (name, user_id) VALUES ($1, $2)", name, userID)
 }
 
 func toggleTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 
-	db.Exec(
-		"UPDATE tasks SET completed = NOT completed WHERE id=$1 AND user_id=$2",
-		id, userID,
-	)
-
-	fmt.Fprintln(w, "Updated")
+	db.Exec("UPDATE tasks SET completed = NOT completed WHERE id=$1 AND user_id=$2", id, userID)
 }
 
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 
-	db.Exec(
-		"DELETE FROM tasks WHERE id=$1 AND user_id=$2",
-		id, userID,
-	)
-
-	fmt.Fprintln(w, "Deleted")
+	db.Exec("DELETE FROM tasks WHERE id=$1 AND user_id=$2", id, userID)
 }
