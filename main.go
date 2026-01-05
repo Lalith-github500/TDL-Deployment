@@ -102,6 +102,19 @@ func createTables() {
 		completed BOOLEAN DEFAULT FALSE,
 		user_id INT REFERENCES users(id) ON DELETE CASCADE
 	)`)
+	
+	// Migration: Add completed column if it doesn't exist
+	db.Exec(`
+	DO $ 
+	BEGIN
+		IF NOT EXISTS (
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_name='tasks' AND column_name='completed'
+		) THEN
+			ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT FALSE;
+		END IF;
+	END $;
+	`)
 }
 
 //////////////////////////////////////////////////
