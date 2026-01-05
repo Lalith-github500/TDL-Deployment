@@ -65,8 +65,14 @@ func main() {
 	http.HandleFunc("/toggle", auth(toggleTask))
 	http.HandleFunc("/delete", auth(deleteTask))
 
-	// FRONTEND
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	// FRONTEND - Serve static.html at root
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.ServeFile(w, r, "./static/static.html")
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -239,19 +245,37 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Exec("INSERT INTO tasks (name, user_id) VALUES ($1, $2)", name, userID)
+	_, err := db.Exec("INSERT INTO tasks (name, user_id) VALUES ($1, $2)", name, userID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
 }
 
 func toggleTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 
-	db.Exec("UPDATE tasks SET completed = NOT completed WHERE id=$1 AND user_id=$2", id, userID)
+	_, err := db.Exec("UPDATE tasks SET completed = NOT completed WHERE id=$1 AND user_id=$2", id, userID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
 }
 
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(int)
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 
-	db.Exec("DELETE FROM tasks WHERE id=$1 AND user_id=$2", id, userID)
+	_, err := db.Exec("DELETE FROM tasks WHERE id=$1 AND user_id=$2", id, userID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
 }
