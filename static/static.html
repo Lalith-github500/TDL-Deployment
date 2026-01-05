@@ -62,11 +62,25 @@ li span {
 
 <!-- AUTH -->
 <div class="container" id="authBox">
-  <h1>Login / Signup</h1>
-  <input id="username" placeholder="Username">
-  <input id="password" type="password" placeholder="Password">
-  <button onclick="signup()">Signup</button>
-  <button onclick="login()">Login</button>
+  <div id="loginForm">
+    <h1>Login</h1>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p style="text-align: center; margin-top: 15px;">
+      New user? <a href="#" onclick="showSignup(); return false;" style="color: #e74c3c; text-decoration: none; font-weight: bold;">Signup here</a>
+    </p>
+  </div>
+  
+  <div id="signupForm" class="hidden">
+    <h1>Signup</h1>
+    <input id="signupUsername" placeholder="Username">
+    <input id="signupPassword" type="password" placeholder="Password">
+    <button onclick="signup()">Create Account</button>
+    <p style="text-align: center; margin-top: 15px;">
+      Already have an account? <a href="#" onclick="showLogin(); return false;" style="color: #e74c3c; text-decoration: none; font-weight: bold;">Login here</a>
+    </p>
+  </div>
 </div>
 
 <!-- TODO -->
@@ -104,9 +118,19 @@ function authHeaders() {
 }
 
 // ---------------- AUTH ----------------
+function showSignup() {
+  document.getElementById("loginForm").classList.add("hidden");
+  document.getElementById("signupForm").classList.remove("hidden");
+}
+
+function showLogin() {
+  document.getElementById("signupForm").classList.add("hidden");
+  document.getElementById("loginForm").classList.remove("hidden");
+}
+
 function signup() {
-  const usernameVal = document.getElementById("username").value;
-  const passwordVal = document.getElementById("password").value;
+  const usernameVal = document.getElementById("signupUsername").value;
+  const passwordVal = document.getElementById("signupPassword").value;
   
   if (!usernameVal || !passwordVal) {
     alert("Please enter username and password");
@@ -126,6 +150,12 @@ function signup() {
   .then(r => r.text())
   .then(msg => {
     alert(msg);
+    if (msg.includes("successful")) {
+      // Clear fields and switch to login
+      document.getElementById("signupUsername").value = "";
+      document.getElementById("signupPassword").value = "";
+      showLogin();
+    }
   })
   .catch(err => {
     alert("Signup error: " + err.message);
@@ -189,8 +219,14 @@ function loadTasks(filter) {
   })
   .then(async r => {
     if (!r.ok) {
-      console.error(await r.text());
-      logout();
+      const errorText = await r.text();
+      console.error("Failed to load tasks:", r.status, errorText);
+      
+      // Only logout if it's an auth error
+      if (r.status === 401) {
+        alert("Session expired. Please login again.");
+        logout();
+      }
       return null;
     }
     return r.json();
@@ -200,6 +236,15 @@ function loadTasks(filter) {
 
     const taskList = document.getElementById("taskList");
     taskList.innerHTML = "";
+    
+    // Handle empty task list
+    if (tasks.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "No tasks yet!";
+      li.style.color = "#999";
+      taskList.appendChild(li);
+      return;
+    }
     
     tasks.forEach(t => {
       const li = document.createElement("li");
@@ -220,6 +265,7 @@ function loadTasks(filter) {
   })
   .catch(err => {
     console.error("Load tasks error:", err);
+    alert("Error loading tasks: " + err.message);
   });
 }
 
