@@ -1,57 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Todo App</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-    }
-    .container {
-      width: 400px;
-      margin: 40px auto;
-      background: white;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    h1 {
-      text-align: center;
-      color: #e74c3c;
-    }
-    input {
-      width: 100%;
-      padding: 8px;
-      margin: 5px 0;
-    }
-    button {
-      padding: 6px 10px;
-      margin: 5px 0;
-      cursor: pointer;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-    li {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 0;
-    }
-    .completed {
-      text-decoration: line-through;
-      color: gray;
-    }
-    .filters button {
-      margin-right: 5px;
-    }
-    .hidden {
-      display: none;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Todo App</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f5f5f5;
+}
+.container {
+  width: 400px;
+  margin: 40px auto;
+  background: white;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+h1 {
+  text-align: center;
+  color: #e74c3c;
+}
+input {
+  width: 100%;
+  padding: 8px;
+  margin: 5px 0;
+}
+button {
+  padding: 6px 10px;
+  margin: 5px 0;
+  cursor: pointer;
+}
+ul {
+  list-style: none;
+  padding: 0;
+}
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+.completed {
+  text-decoration: line-through;
+  color: gray;
+}
+.filters button {
+  margin-right: 5px;
+}
+.hidden {
+  display: none;
+}
+</style>
 </head>
+
 <body>
 
+<!-- AUTH -->
 <div class="container" id="authBox">
   <h1>Login / Signup</h1>
   <input id="username" placeholder="Username">
@@ -60,10 +63,13 @@
   <button onclick="login()">Login</button>
 </div>
 
+<!-- TODO -->
 <div class="container hidden" id="todoBox">
   <h1>todos</h1>
 
-  <input id="taskInput" placeholder="What needs to be done?" onkeypress="if(event.key==='Enter') addTask()">
+  <input id="taskInput"
+         placeholder="What needs to be done?"
+         onkeypress="if(event.key==='Enter') addTask()">
 
   <ul id="taskList"></ul>
 
@@ -76,9 +82,9 @@
 </div>
 
 <script>
-const API = "";
 let currentFilter = "all";
 
+// ---------------- TOKEN ----------------
 function getToken() {
   return localStorage.getItem("token");
 }
@@ -90,7 +96,6 @@ function authHeaders() {
 }
 
 // ---------------- AUTH ----------------
-
 function signup() {
   fetch("/signup", {
     method: "POST",
@@ -98,7 +103,9 @@ function signup() {
       username: username.value,
       password: password.value
     })
-  }).then(r => r.text()).then(alert);
+  })
+  .then(r => r.text())
+  .then(alert);
 }
 
 function login() {
@@ -109,8 +116,15 @@ function login() {
       password: password.value
     })
   })
-  .then(r => r.json())
+  .then(async r => {
+    if (!r.ok) {
+      alert(await r.text());
+      return;
+    }
+    return r.json();
+  })
   .then(data => {
+    if (!data) return;
     localStorage.setItem("token", data.token);
     showTodos();
   });
@@ -121,21 +135,31 @@ function logout() {
   location.reload();
 }
 
-// ---------------- TODOS ----------------
-
+// ---------------- UI ----------------
 function showTodos() {
   authBox.classList.add("hidden");
   todoBox.classList.remove("hidden");
   loadTasks("all");
 }
 
+// ---------------- TASKS ----------------
 function loadTasks(filter) {
   currentFilter = filter;
+
   fetch(`/tasks?filter=${filter}`, {
     headers: authHeaders()
   })
-  .then(r => r.json())
+  .then(async r => {
+    if (!r.ok) {
+      console.error(await r.text());
+      logout();
+      return;
+    }
+    return r.json();
+  })
   .then(tasks => {
+    if (!tasks) return;
+
     taskList.innerHTML = "";
     tasks.forEach(t => {
       const li = document.createElement("li");
@@ -150,9 +174,12 @@ function loadTasks(filter) {
 }
 
 function addTask() {
-  fetch(`/add?name=${taskInput.value}`, {
+  if (!taskInput.value) return;
+
+  fetch(`/add?name=${encodeURIComponent(taskInput.value)}`, {
     headers: authHeaders()
-  }).then(() => {
+  })
+  .then(() => {
     taskInput.value = "";
     loadTasks(currentFilter);
   });
@@ -161,16 +188,18 @@ function addTask() {
 function toggleTask(id) {
   fetch(`/toggle?id=${id}`, {
     headers: authHeaders()
-  }).then(() => loadTasks(currentFilter));
+  })
+  .then(() => loadTasks(currentFilter));
 }
 
 function deleteTask(id) {
   fetch(`/delete?id=${id}`, {
     headers: authHeaders()
-  }).then(() => loadTasks(currentFilter));
+  })
+  .then(() => loadTasks(currentFilter));
 }
 
-// AUTO LOGIN
+// ---------------- AUTO LOGIN ----------------
 if (getToken()) {
   showTodos();
 }
