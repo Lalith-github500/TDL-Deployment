@@ -238,7 +238,8 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var tasks []Task
+	// Initialize empty slice instead of nil to return [] instead of null
+	tasks := []Task{}
 	for rows.Next() {
 		var t Task
 		rows.Scan(&t.ID, &t.Name, &t.Completed)
